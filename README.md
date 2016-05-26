@@ -4,7 +4,7 @@ Build [stack](http://docs.haskellstack.org) projects offline
 
 ## Design
 
-### Utility `stack-offline-pack`
+### Utility `stack-offline`
 
 Packs everything you need to develop without internet connection.
 Packing itself does use internet connection.
