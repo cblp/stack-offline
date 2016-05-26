@@ -1,5 +1,7 @@
 # stack-offline
 
+[![Join the chat at https://gitter.im/cblp/stack-offline](https://badges.gitter.im/cblp/stack-offline.svg)](https://gitter.im/cblp/stack-offline?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Build [stack](http://docs.haskellstack.org) projects offline
 
 ## Design
