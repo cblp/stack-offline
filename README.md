@@ -1,6 +1,6 @@
 # stack-offline
 
-Build [stack](https://docs.haskellstack.org) projects offline
+Build [stack](http://docs.haskellstack.org) projects offline
 
 ## Design
 
