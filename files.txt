@@ -1,0 +1,31 @@
+usr/share/stack-offline/
+    build-plan/
+        lts-2.21.yaml
+    build-plan-cache/ -> cache
+    config.yaml
+        allow-different-user: true
+    indices/
+        Hackage/
+            00-index.cache -> cache
+            00-index.tar
+            packages/
+                ...
+    precompiled/ -> cache
+    programs/
+        x86_64-linux/
+            ghc-7.8.4.installed
+            ghc-7.8.4/
+                bin/
+                    ghc...
+                    ghc-pkg...
+    setup-exe-cache/ -> cache
+    snapshots/ -> cache
+var/cache/stack-offline/
+    ! chmod -R a+rw
+    build-plan-cache/
+    indices/
+        Hackage/
+            00-index.cache
+    precompiled/
+    setup-exe-cache/
+    snapshots/
