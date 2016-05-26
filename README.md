@@ -20,5 +20,5 @@ Parameters:
   - do pack GHC
 
 Output: 
-- big `tgz` archive (from handreds of megabytes in minimal case to several gigabytes and beyond) with packages and compiler.
+- big `tgz` archive (from hundreds of megabytes in minimal case to several gigabytes and beyond) with packages and compiler.
 - a script extracting everything into proper positions in user's `~/.stack`.
