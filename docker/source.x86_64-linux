@@ -1,0 +1,7 @@
+FROM  ubuntu:xenial
+RUN   apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 575159689BEFB442  \
+  &&  echo 'deb http://download.fpcomplete.com/ubuntu xenial main'                        \
+      > /etc/apt/sources.list.d/fpco.list
+RUN   apt-get update
+RUN   apt-get install -y stack sudo
+RUN   useradd --create-home user

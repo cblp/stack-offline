@@ -1,0 +1,6 @@
+#!/bin/bash
+set -eu -o pipefail
+
+[ `uname -s` == linux ] \
+  || eval $(docker-machine env default)
+STACK_OFFLINE_TEST=FULL stack test --pedantic

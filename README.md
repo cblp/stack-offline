@@ -33,4 +33,4 @@ Output:
 
 ### Testing
 
-    $ stack test --pedantic
+    $ ./test.full
