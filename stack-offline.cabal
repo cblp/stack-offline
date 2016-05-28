@@ -16,6 +16,7 @@ library
     hs-source-dirs:   src
     exposed-modules:  Stack.Offline
     build-depends:    base >= 4.7 && < 5
+                    , Cabal
     default-language: Haskell2010
     ghc-options:      -Wall
 
@@ -26,6 +27,7 @@ executable stack-offline
     default-language: Haskell2010
 
     build-depends:    base
+                    , Cabal
                     , optparse-applicative
 
                     , stack-offline
