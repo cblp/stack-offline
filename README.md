@@ -12,15 +12,21 @@ Packs everything you need to develop without internet connection.
 Packing itself does use internet connection.
 
 Parameters:
-- `--resolver` 
+- `--resolver`
   - (mandatory) use specified snapshot
-- `--minimal` 
+- `--minimal`
   - pack only build tools, without testing, profiling and other tools
-- `--system-ghc` 
+- `--system-ghc`
   - do not pack GHC (default)
-- `--no-system-ghc` 
+- `--no-system-ghc`
   - do pack GHC
 
-Output: 
+Output:
 - big `tgz` archive (from hundreds of megabytes in minimal case to several gigabytes and beyond) with packages and compiler.
 - a script extracting everything into proper positions in user's `~/.stack`.
+
+## Development
+
+### Testing
+
+    $ stack test --pedantic
