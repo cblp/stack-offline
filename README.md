@@ -27,6 +27,10 @@ Output:
 
 ## Development
 
+### Build and install
+
+    $ stack install
+
 ### Testing
 
     $ stack test --pedantic

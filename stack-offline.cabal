@@ -14,22 +14,23 @@ cabal-version:  >= 1.10
 
 library
     hs-source-dirs:   src
-    exposed-modules:  Lib
+    exposed-modules:  Stack.Offline
     build-depends:    base >= 4.7 && < 5
     default-language: Haskell2010
     ghc-options:      -Wall
 
-executable stack-offline-exe
+executable stack-offline
     hs-source-dirs:   app
     main-is:          Main.hs
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N -Wall
     default-language: Haskell2010
 
     build-depends:    base
+                    , optparse-applicative
 
                     , stack-offline
 
-test-suite stack-offline-test
+test-suite test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Spec.hs
