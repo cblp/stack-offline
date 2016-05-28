@@ -51,8 +51,6 @@ dockerBuild :: String -> FilePath -> IO ()
 dockerBuild image dockerfile =
     callProcess "docker" ["build", "--file=" <> dockerfile, "--tag=" <> image, "./docker/"]
 
--- pattern a :- b = (a, b)
-
 -- | Run command in docker container with user privileges
 dockerRunUser :: String -> [String :- String] -> String -> IO ()
 dockerRunUser image volumes cmd =
