@@ -1,8 +1,11 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeOperators #-}
 
 import Control.Monad           (unless)
 import Data.Monoid             ((<>))
 import Data.String.Interpolate (i)
+import Data.Tuple.Operator     ((:-), pattern (:-))
 import System.Directory        (getCurrentDirectory, getHomeDirectory)
 import System.Environment      (lookupEnv)
 import System.IO               (hPutStrLn, stderr)
@@ -25,14 +28,20 @@ main = do
         hPutStrLn stderr "Full cycle tests are skipped"
     defaultMain $ testGroup "full cycle" [testCase (show conf) $ fullCycle conf | conf <- confs]
   where
-    confs = [(X86_64, Linux, X86_64, Linux)]
+    confs = [(X86_64 :- Linux) :- (X86_64 :- Linux)]
 
-fullCycle :: (Arch, Os, Arch, Os) -> IO ()
-fullCycle (sourceArch, sourceOs, _targetArch, _targetOs) = do
+fullCycle :: (Arch :- Os) :- (Arch :- Os) -> IO ()
+fullCycle ((sourceArch, sourceOs), (_targetArch, _targetOs)) = do
     let sourceImage = [i|stack-offline.source.#{sourceArch}-#{sourceOs}|]
         sourceDockerfile = [i|docker/source.#{sourceArch}-#{sourceOs}|]
     dockerBuild sourceImage sourceDockerfile
-    dockerRunUser sourceImage [i|
+    cwd <- getCurrentDirectory
+    home <- getHomeDirectory
+    let volumes = [ cwd :- "/opt/stack-offline"
+                  , home <> "/.stack" :- "/home/user/.stack"
+                  ]
+    dockerRunUser sourceImage volumes [i|
+        export PATH=$HOME/.local/bin:$PATH
         stack setup
         stack install
         stack-offline --help
@@ -42,21 +51,22 @@ dockerBuild :: String -> FilePath -> IO ()
 dockerBuild image dockerfile =
     callProcess "docker" ["build", "--file=" <> dockerfile, "--tag=" <> image, "./docker/"]
 
+-- pattern a :- b = (a, b)
+
 -- | Run command in docker container with user privileges
-dockerRunUser :: String -> String -> IO ()
-dockerRunUser image cmd = do
-    cwd <- getCurrentDirectory
-    home <- getHomeDirectory
-    callProcess "docker"
-        [ "run"
-        , "--interactive"
-        , "--rm"
-        -- , "--tty" TODO(cblp, 2016-05-29) try inherit stdin
-        , [i|--volume=#{cwd}:/opt/stack-offline|] -- TODO(cblp, 2016-05-29) pass volumes as arguments
-        , [i|--volume=#{home}/.stack:/home/user/.stack|]
-        , "--workdir=/opt/stack-offline"
-        , image
-        , "sudo", "--set-home", "--user=user"
-        , "bash", "-eux", "-o", "pipefail", "-c"
-        , cmd
+dockerRunUser :: String -> [String :- String] -> String -> IO ()
+dockerRunUser image volumes cmd =
+    callProcess "docker" $ concat
+        [ [ "run"
+          , "--interactive"
+          , "--rm"
+          -- , "--tty" TODO(cblp, 2016-05-29) try inherit stdin
+          , "--workdir=/opt/stack-offline"
+          ]
+        , ["--volume=" <> host <> ":" <> guest | host :- guest <- volumes]
+        , [ image
+          , "sudo", "--set-home", "--user=user"
+          , "bash", "-eux", "-o", "pipefail", "-c"
+          , cmd
+          ]
         ]
