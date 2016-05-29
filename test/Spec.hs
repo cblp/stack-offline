@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeOperators #-}
@@ -13,6 +14,8 @@ import System.Process          (callProcess)
 import Test.Tasty              (defaultMain, testGroup)
 import Test.Tasty.HUnit        (testCase)
 
+import Stack.Offline (Snapshot)
+
 data Arch = X86_64
 instance Show Arch where
     show X86_64 = "x86_64"
@@ -21,6 +24,10 @@ data Os = Linux
 instance Show Os where
     show Linux = "linux"
 
+-- | Full cycle test configuration
+data Conf = Conf{source :: (Arch, Os), snapshot :: Snapshot}
+    deriving Show
+
 main :: IO ()
 main = do
     runFullTest <- (Just "FULL" ==) <$> lookupEnv "STACK_OFFLINE_TEST"
@@ -28,23 +35,26 @@ main = do
         hPutStrLn stderr "Full cycle tests are skipped"
     defaultMain $ testGroup "full cycle" [testCase (show conf) $ fullCycle conf | conf <- confs]
   where
-    confs = [(X86_64 :- Linux) :- (X86_64 :- Linux)]
+    confs = [ Conf{source, snapshot}
+            | source <- [(X86_64, Linux)]
+            , snapshot <- ["lts-2.0" {- ghc-7.8.4 -}, "lts-3.0" {- ghc-7.10.2 -}]
+            ]
 
-fullCycle :: (Arch :- Os) :- (Arch :- Os) -> IO ()
-fullCycle ((sourceArch, sourceOs), (_targetArch, _targetOs)) = do
+fullCycle :: Conf -> IO ()
+fullCycle Conf{source = (sourceArch, sourceOs), snapshot} = do
     let sourceImage = [i|stack-offline.source.#{sourceArch}-#{sourceOs}|]
         sourceDockerfile = [i|docker/source.#{sourceArch}-#{sourceOs}|]
     dockerBuild sourceImage sourceDockerfile
     cwd <- getCurrentDirectory
     home <- getHomeDirectory
-    let volumes = [ cwd :- "/opt/stack-offline"
-                  , home <> "/.stack" :- "/home/user/.stack"
-                  ]
+    let volumes = [ cwd               :- "/opt/stack-offline"
+                  , home <> "/.stack" :- "/home/user/.stack" ]
     dockerRunUser sourceImage volumes [i|
         export PATH=$HOME/.local/bin:$PATH
+        set -x
         stack setup
         stack install
-        stack-offline --help
+        stack-offline --resolver="#{snapshot}"
     |]
 
 dockerBuild :: String -> FilePath -> IO ()
@@ -61,10 +71,10 @@ dockerRunUser image volumes cmd =
           -- , "--tty" TODO(cblp, 2016-05-29) try inherit stdin
           , "--workdir=/opt/stack-offline"
           ]
-        , ["--volume=" <> host <> ":" <> guest | host :- guest <- volumes]
+        , [ "--volume=" <> host <> ":" <> guest | host :- guest <- volumes ]
         , [ image
           , "sudo", "--set-home", "--user=user"
-          , "bash", "-eux", "-o", "pipefail", "-c"
+          , "bash", "-eu", "-o", "pipefail", "-c"
           , cmd
           ]
         ]
