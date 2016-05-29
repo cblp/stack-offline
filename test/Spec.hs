@@ -33,7 +33,11 @@ main = do
     runFullTest <- (Just "FULL" ==) <$> lookupEnv "STACK_OFFLINE_TEST"
     unless runFullTest $
         hPutStrLn stderr "Full cycle tests are skipped"
-    defaultMain $ testGroup "full cycle" [testCase (show conf) $ fullCycle conf | conf <- confs]
+    defaultMain $
+        if runFullTest then
+            testGroup "full cycle" [testCase (show conf) $ fullCycle conf | conf <- confs]
+        else
+            testGroup "" []
   where
     confs = [ Conf{source, snapshot}
             | source <- [(X86_64, Linux)]
@@ -44,6 +48,7 @@ fullCycle :: Conf -> IO ()
 fullCycle Conf{source = (sourceArch, sourceOs), snapshot} = do
     let sourceImage = [i|stack-offline.source.#{sourceArch}-#{sourceOs}|]
         sourceDockerfile = [i|docker/source.#{sourceArch}-#{sourceOs}|]
+        packFile = [i|stack-offline-pack_#{snapshot}_#{sourceArch}-#{sourceOs}.tgz|]
     dockerBuild sourceImage sourceDockerfile
     cwd <- getCurrentDirectory
     home <- getHomeDirectory
@@ -54,7 +59,9 @@ fullCycle Conf{source = (sourceArch, sourceOs), snapshot} = do
         set -x
         stack setup
         stack install
-        stack-offline --resolver="#{snapshot}"
+        rm -f "#{packFile}"
+        stack-offline --resolver="#{snapshot}" --tgz="#{packFile}"
+        test -f "#{packFile}"
     |]
 
 dockerBuild :: String -> FilePath -> IO ()
