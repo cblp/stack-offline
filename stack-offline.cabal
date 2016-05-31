@@ -41,11 +41,9 @@ test-suite test
 
     build-depends:    base
                     , directory
-                    , extra
                     , interpolate
                     , process
-                    , tasty
-                    , tasty-hunit
+                    , shake
                     , tuple-operator
 
                     , stack-offline

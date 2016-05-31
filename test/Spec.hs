@@ -1,87 +1,143 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 
-import Control.Monad           (unless)
-import Data.List.Extra         (stripPrefix, stripSuffix)
-import Data.Monoid             ((<>))
-import Data.String.Interpolate (i)
-import Data.Tuple.Operator     ((:-), pattern (:-))
-import System.Directory        (getCurrentDirectory)
-import System.Environment      (lookupEnv)
-import System.IO               (hPutStrLn, stderr)
-import System.Process          (callProcess)
-import Test.Tasty              (defaultMain, testGroup)
-import Test.Tasty.HUnit        (testCase)
+import Control.Monad             (unless, when)
+import Data.Monoid               ((<>))
+import Data.String.Interpolate   (i)
+import Data.Tuple.Operator       ((:-), pattern (:-))
+import Development.Shake
+import Development.Shake.Classes
+import Development.Shake.Rule
+import GHC.Generics              (Generic)
+import System.Directory          (getCurrentDirectory)
+import System.Environment        (lookupEnv)
+import System.IO                 (hPutStrLn, stderr)
+import System.Process            (callProcess)
 
 import Stack.Offline (Snapshot)
 
-showShortSnapshot :: Snapshot -> String
-showShortSnapshot (stripPrefix "lts-" -> Just rest) = "L" <> showShortSnapshot rest
-showShortSnapshot (stripSuffix ".0" -> Just rest) = showShortSnapshot rest
-showShortSnapshot other = other
-
 data Arch = X86_64
+    deriving (Binary, Eq, Generic, Hashable, NFData)
 instance Show Arch where
     show X86_64 = "x86_64"
 
-showShortArch :: Arch -> String
-showShortArch X86_64 = "64"
-
 data Os = Linux
+    deriving (Binary, Eq, Generic, Hashable, NFData)
 instance Show Os where
     show Linux = "linux"
 
-showShortOs :: Os -> String
-showShortOs Linux = "L"
-
 -- | Full cycle test configuration
 data Conf = Conf{source :: (Arch, Os), snapshot :: Snapshot}
-    deriving Show
+    deriving (Binary, Eq, Generic, Show, Hashable, NFData)
 
-showShortConf :: Conf -> String
-showShortConf Conf{source = (arch, os), snapshot} =
-    mconcat [showShortOs os, showShortArch arch, showShortSnapshot snapshot]
+data FullCycleTest = FullCycleTest
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule FullCycleTest () where
+    storedValue _ _ = pure Nothing
+
+newtype FullCycle = FullCycle Conf
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule FullCycle () where
+    storedValue _ _ = pure Nothing
+
+needFullCycleTest :: Action ()
+needFullCycleTest = apply1 FullCycleTest
+
+wantFullCycleTest :: Rules ()
+wantFullCycleTest = action needFullCycleTest
+
+needFullCycles :: [Conf] -> Action ()
+needFullCycles confs = do
+    _ :: [()] <- apply $ fmap FullCycle confs
+    pure ()
 
 main :: IO ()
 main = do
     runFullTest <- (Just "FULL" ==) <$> lookupEnv "STACK_OFFLINE_TEST"
     unless runFullTest $
         hPutStrLn stderr "Full cycle tests are skipped"
-    defaultMain $
-        if runFullTest then
-            testGroup "full cycle" [testCase (show conf) $ fullCycle conf | conf <- confs]
-        else
-            testGroup "" []
+
+    shakeArgs shakeOptions $ do
+        when runFullTest
+            wantFullCycleTest
+
+        rule $ \FullCycleTest -> Just $
+            needFullCycles confs
+
+        rule $ \(FullCycle conf) -> Just $
+            needStackOfflinePack conf
+
+        rule $ \dockerImage -> Just .
+            liftIO $ dockerBuild dockerImage
+
+        rule $ \(StackOfflinePack conf) -> Just $
+            buildPack conf
+
+        rule $ \tool -> Just $
+            buildTool tool
+
   where
     confs = [ Conf{source, snapshot}
             | source <- [(X86_64, Linux)]
-            , snapshot <- ["lts-2.0" {- ghc-7.8.4 -}, "lts-3.0" {- ghc-7.10.2 -}]
+            , snapshot <- [ "lts-2.0" -- ghc-7.8.4
+                          , "lts-3.0" -- ghc-7.10.2
+                          , "lts-5.0" -- ghc-7.10.3
+                          ]
             ]
 
-fullCycle :: Conf -> IO ()
-fullCycle conf@Conf{source = (sourceArch, sourceOs), snapshot} = do
-    let sourceImage = [i|stack-offline.source.#{sourceArch}-#{sourceOs}|]
-        sourceDockerfile = [i|docker/source.#{sourceArch}-#{sourceOs}|]
-    dockerBuild sourceImage sourceDockerfile
+dockerImageName :: String -> (Arch, Os) -> String
+dockerImageName prefix (arch, os) = [i|stack-offline.#{prefix}.#{arch}-#{os}|]
 
-    cwd <- getCurrentDirectory
-    let packFile  = [i|tmp/stack-offline-pack_#{snapshot}_#{sourceArch}-#{sourceOs}.tgz|]
-        stackRoot = [i|tmp/stack-root_#{showShortConf conf}|]
-        stackWork = [i|.stack-work_#{showShortConf conf}|]
-    dockerRunUser sourceImage [cwd :- "/opt/stack-offline"] [i|
-        export PATH=$HOME/.local/bin:$PATH
+needTool :: Tool -> Action ()
+needTool = apply1
+
+buildTool :: Tool -> Action ()
+buildTool (Tool arch os) = do
+    let sourceDockerfile = [i|docker/source.#{arch}-#{os}|]
+        sourceImage = dockerImageName "source" (arch, os)
+    needDockerImage sourceImage sourceDockerfile
+
+    cwd <- liftIO getCurrentDirectory
+    liftIO $ dockerRunUser sourceImage [cwd :- "/opt/stack-offline"] [i|
+        cwd=`pwd`
+        mkdir -p tmp/bin
         set -x
-        stack --install-ghc --stack-root="$(pwd)/#{stackRoot}" --work-dir="#{stackWork}" install
+        stack --install-ghc --local-bin-path="tmp/bin" --stack-root="$cwd/tmp/stack" install
+    |]
+
+buildPack :: Conf -> Action ()
+buildPack Conf{source = source@(sourceArch, sourceOs), snapshot} = do
+    let sourceDockerfile = [i|docker/source.#{sourceArch}-#{sourceOs}|]
+        sourceImage = dockerImageName "source" source
+    needDockerImage sourceImage sourceDockerfile
+
+    needTool $ Tool sourceArch sourceOs
+
+    cwd <- liftIO getCurrentDirectory
+    let packFile = [i|tmp/stack-offline-pack_#{snapshot}_#{sourceArch}-#{sourceOs}.tgz|]
+    liftIO $ dockerRunUser sourceImage [cwd :- "/opt/stack-offline"] [i|
+        set -x
         rm -f "#{packFile}"
-        stack-offline --resolver="#{snapshot}" --tgz="#{packFile}"
+        tmp/bin/stack-offline --resolver="#{snapshot}" --tgz="#{packFile}"
         test -f "#{packFile}"
     |]
 
-dockerBuild :: String -> FilePath -> IO ()
-dockerBuild image dockerfile = do
+data DockerImage = DockerImage{image :: String, dockerfile :: String}
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule DockerImage () where
+    storedValue _ _ = pure Nothing
+
+needDockerImage :: String -> String -> Action ()
+needDockerImage image dockerfile = apply1 DockerImage{image, dockerfile}
+
+dockerBuild :: DockerImage -> IO ()
+dockerBuild DockerImage{image, dockerfile} = do
     mHttpProxy <- lookupEnv "http_proxy"
     callProcess "docker" $ concat
         [ [ "build" ]
@@ -93,7 +149,7 @@ dockerBuild image dockerfile = do
 
 -- | Run command in docker container with user privileges
 dockerRunUser :: String -> [String :- String] -> String -> IO ()
-dockerRunUser image volumes cmd =
+dockerRunUser image volumes userCommand =
     callProcess "docker" $ concat
         [ [ "run"
           , "--interactive"
@@ -104,5 +160,18 @@ dockerRunUser image volumes cmd =
         , [ image
           , "sudo", "--preserve-env", "--set-home", "--user=user"
           , "bash", "-eu", "-o", "pipefail", "-c"
-          , cmd ]
+          , userCommand ]
         ]
+
+newtype StackOfflinePack = StackOfflinePack Conf
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule StackOfflinePack () where
+    storedValue _ _ = pure Nothing
+
+needStackOfflinePack :: Conf -> Action ()
+needStackOfflinePack = apply1 . StackOfflinePack
+
+data Tool = Tool Arch Os
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule Tool () where
+    storedValue _ _ = pure Nothing
