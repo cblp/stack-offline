@@ -3,8 +3,14 @@ set -eu -o pipefail
 
 stack test --pedantic
 
-[ `uname -s` == linux ] \
-  || eval $(docker-machine env default)
-time                      \
-  STACK_OFFLINE_TEST=FULL \
-    stack test stack-offline:test
+if [ `uname -s` != Linux ]; then
+    if which docker-machine >/dev/null; then
+        eval $(docker-machine env default)
+    else
+        echo "docker-machine must be installed" 1>&2
+        exit 1
+    fi
+fi
+time                        \
+    STACK_OFFLINE_TEST=FULL \
+        stack test stack-offline:test
