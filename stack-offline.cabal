@@ -41,6 +41,7 @@ test-suite test
 
     build-depends:    base
                     , directory
+                    , extra
                     , interpolate
                     , process
                     , tasty

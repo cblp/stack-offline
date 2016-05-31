@@ -1,4 +1,5 @@
 FROM  ubuntu:xenial
+ENV   http_proxy=$http_proxy https_proxy=$http_proxy
 RUN   apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 575159689BEFB442  \
   &&  echo 'deb http://download.fpcomplete.com/ubuntu xenial main'                        \
       > /etc/apt/sources.list.d/fpco.list
