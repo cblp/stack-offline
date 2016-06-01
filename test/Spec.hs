@@ -4,7 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-import Control.Monad             (unless, when)
+import Control.Monad             (unless)
 import Data.String.Interpolate   (i)
 import Data.Tuple.Operator       (pattern (:-))
 import Development.Shake         (Action, liftIO, shakeArgs, shakeOptions)
@@ -33,9 +33,6 @@ instance Show Os where
 data Conf = Conf{source :: (Arch, Os), snapshot :: Snapshot}
     deriving (Binary, Eq, Generic, Show, Hashable, NFData)
 
-data FullCycleTest = FullCycleTest
-    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-
 newtype FullCycle = FullCycle Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 
@@ -52,11 +49,7 @@ main = do
         hPutStrLn stderr "Full cycle tests are skipped"
 
     shakeArgs shakeOptions $ do
-        when runFullTest $
-            want [FullCycleTest]
-
-        simpleRule $ \FullCycleTest ->
-            need $ fmap FullCycle confs
+        want [FullCycle conf | runFullTest, conf <- confs]
 
         simpleRule $ \(FullCycle conf) ->
             need [StackOfflinePack conf]
