@@ -7,16 +7,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
-import Control.Monad                 (unless, when)
-import Data.String.Interpolate       (i)
-import Data.Tuple.Operator           (pattern (:-))
-import Development.Shake             (Action, liftIO, shakeArgs, shakeOptions)
-import Development.Shake.Classes     (Binary, Hashable, NFData)
-import Development.Shake.Rule.Simple (Rule, need, simpleRule, simpleStoredValue, storedValue, want)
-import GHC.Generics                  (Generic)
-import System.Directory              (getCurrentDirectory)
-import System.Environment            (lookupEnv)
-import System.IO                     (hPutStrLn, stderr)
+import Control.Monad             (unless, when)
+import Data.String.Interpolate   (i)
+import Data.Tuple.Operator       (pattern (:-))
+import Development.Shake         (Action, liftIO, shakeArgs, shakeOptions)
+import Development.Shake.Classes (Binary, Hashable, NFData)
+import Development.Shake.Simple  (Rule, need, simpleRule, simpleStoredValue, storedValue, want)
+import GHC.Generics              (Generic)
+import System.Directory          (getCurrentDirectory)
+import System.Environment        (lookupEnv)
+import System.IO                 (hPutStrLn, stderr)
 
 import Stack.Offline (Snapshot)
 

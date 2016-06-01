@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Development.Shake.Rule.Simple
+module Development.Shake.Simple
     (Rule, need, rule, simpleRule, simpleStoredValue, storedValue, want) where
 
 import Data.Functor           (($>))
