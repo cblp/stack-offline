@@ -8,9 +8,8 @@
 {-# LANGUAGE TypeOperators #-}
 
 import Control.Monad                 (unless, when)
-import Data.Monoid                   ((<>))
 import Data.String.Interpolate       (i)
-import Data.Tuple.Operator           ((:-), pattern (:-))
+import Data.Tuple.Operator           (pattern (:-))
 import Development.Shake             (Action, liftIO, shakeArgs, shakeOptions)
 import Development.Shake.Classes     (Binary, Hashable, NFData)
 import Development.Shake.Rule.Simple (Rule, need, simpleRule, simpleStoredValue, storedValue, want)
@@ -18,9 +17,10 @@ import GHC.Generics                  (Generic)
 import System.Directory              (getCurrentDirectory)
 import System.Environment            (lookupEnv)
 import System.IO                     (hPutStrLn, stderr)
-import System.Process                (callProcess)
 
 import Stack.Offline (Snapshot)
+
+import Docker (DockerImage(..), DockerRun(..), dockerBuild, dockerRunUser)
 
 data Arch = X86_64
     deriving (Binary, Eq, Generic, Hashable, NFData)
@@ -44,11 +44,6 @@ instance Rule FullCycleTest () where
 newtype FullCycle = FullCycle Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 instance Rule FullCycle () where
-    storedValue = simpleStoredValue
-
-data DockerImage = DockerImage{image :: String, dockerfile :: String}
-    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule DockerImage () where
     storedValue = simpleStoredValue
 
 newtype StackOfflinePack = StackOfflinePack Conf
@@ -105,7 +100,7 @@ buildTool (Tool arch os) = do
     need [DockerImage sourceImage sourceDockerfile]
 
     cwd <- liftIO getCurrentDirectory
-    liftIO $ dockerRunUser sourceImage [cwd :- "/opt/stack-offline"] [i|
+    liftIO $ dockerRunUser (mkDROptions sourceImage cwd) [i|
         cwd=`pwd`
         mkdir -p tmp/bin
         set -x
@@ -121,36 +116,16 @@ buildPack Conf{source = source@(sourceArch, sourceOs), snapshot} = do
 
     cwd <- liftIO getCurrentDirectory
     let packFile = [i|tmp/stack-offline-pack_#{snapshot}_#{sourceArch}-#{sourceOs}.tgz|]
-    liftIO $ dockerRunUser sourceImage [cwd :- "/opt/stack-offline"] [i|
+    liftIO $ dockerRunUser (mkDROptions sourceImage cwd) [i|
         set -x
         rm -f "#{packFile}"
         tmp/bin/stack-offline --resolver="#{snapshot}" --tgz="#{packFile}"
         test -f "#{packFile}"
     |]
 
-dockerBuild :: DockerImage -> IO ()
-dockerBuild DockerImage{image, dockerfile} = do
-    mHttpProxy <- lookupEnv "http_proxy"
-    callProcess "docker" $ concat
-        [ [ "build" ]
-        , [ "--build-arg=http_proxy=" <> http_proxy | Just http_proxy <- [mHttpProxy] ]
-        , [ "--file=" <> dockerfile
-          , "--tag=" <> image
-          , "./docker/" ]
-        ]
-
--- | Run command in docker container with user privileges
-dockerRunUser :: String -> [String :- String] -> String -> IO ()
-dockerRunUser image volumes userCommand =
-    callProcess "docker" $ concat
-        [ [ "run"
-          , "--interactive"
-          , "--rm"
-          -- , "--tty" TODO(cblp, 2016-05-29) try inherit stdin
-          , "--workdir=/opt/stack-offline" ]
-        , [ "--volume=" <> host <> ":" <> guest | host :- guest <- volumes ]
-        , [ image
-          , "sudo", "--preserve-env", "--set-home", "--user=user"
-          , "bash", "-eu", "-o", "pipefail", "-c"
-          , userCommand ]
-        ]
+mkDROptions :: String -> FilePath -> DockerRun
+mkDROptions image cwd = DockerRun
+    { dr_image = image
+    , dr_volumes = [cwd :- "/opt/stack-offline"]
+    , dr_workdir = "/opt/stack-offline"
+    }
