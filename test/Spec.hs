@@ -33,6 +33,7 @@ instance Show Os where
 data Conf = Conf{source :: (Arch, Os), snapshot :: Snapshot}
     deriving (Binary, Eq, Generic, Show, Hashable, NFData)
 
+-- | TODO(cblp, 2016-06-02) remove or replace with final target(s)
 newtype FullCycle = FullCycle Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 
@@ -49,7 +50,14 @@ main = do
         hPutStrLn stderr "Full cycle tests are skipped"
 
     shakeArgs shakeOptions $ do
-        want [FullCycle conf | runFullTest, conf <- confs]
+        want  [ FullCycle Conf{source, snapshot}
+              | runFullTest
+              , source <- [(X86_64, Linux)]
+              , snapshot <- [ "lts-2.0" -- ghc-7.8.4
+                            , "lts-3.0" -- ghc-7.10.2
+                            , "lts-5.0" -- ghc-7.10.3
+                            ]
+              ]
 
         simpleRule $ \(FullCycle conf) ->
             need [StackOfflinePack conf]
@@ -62,15 +70,6 @@ main = do
 
         simpleRule -- Tool
             buildTool
-
-  where
-    confs = [ Conf{source, snapshot}
-            | source <- [(X86_64, Linux)]
-            , snapshot <- [ "lts-2.0" -- ghc-7.8.4
-                          , "lts-3.0" -- ghc-7.10.2
-                          , "lts-5.0" -- ghc-7.10.3
-                          ]
-            ]
 
 dockerImageName :: String -> (Arch, Os) -> String
 dockerImageName prefix (arch, os) = [i|stack-offline.#{prefix}.#{arch}-#{os}|]
