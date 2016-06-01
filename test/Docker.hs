@@ -10,15 +10,12 @@ module Docker (DockerImage(..), DockerRun(..), dockerBuild, dockerRunUser) where
 import Data.Monoid               ((<>))
 import Data.Tuple.Operator       ((:-), pattern (:-))
 import Development.Shake.Classes (Binary, Hashable, NFData)
-import Development.Shake.Simple  (Rule, simpleStoredValue, storedValue)
 import GHC.Generics              (Generic)
 import System.Environment        (lookupEnv)
 import System.Process            (callProcess)
 
 data DockerImage = DockerImage{di_tag :: String, di_dockerfile :: String}
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule DockerImage () where
-    storedValue = simpleStoredValue
 
 dockerBuild :: DockerImage -> IO ()
 dockerBuild DockerImage{di_tag, di_dockerfile} = do

@@ -1,18 +1,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 
 import Control.Monad             (unless, when)
 import Data.String.Interpolate   (i)
 import Data.Tuple.Operator       (pattern (:-))
 import Development.Shake         (Action, liftIO, shakeArgs, shakeOptions)
 import Development.Shake.Classes (Binary, Hashable, NFData)
-import Development.Shake.Simple  (Rule, need, simpleRule, simpleStoredValue, storedValue, want)
+import Development.Shake.Simple  (need, simpleRule, want)
 import GHC.Generics              (Generic)
 import System.Directory          (getCurrentDirectory)
 import System.Environment        (lookupEnv)
@@ -38,23 +35,15 @@ data Conf = Conf{source :: (Arch, Os), snapshot :: Snapshot}
 
 data FullCycleTest = FullCycleTest
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule FullCycleTest () where
-    storedValue = simpleStoredValue
 
 newtype FullCycle = FullCycle Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule FullCycle () where
-    storedValue = simpleStoredValue
 
 newtype StackOfflinePack = StackOfflinePack Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule StackOfflinePack () where
-    storedValue = simpleStoredValue
 
 data Tool = Tool Arch Os
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule Tool () where
-    storedValue = simpleStoredValue
 
 main :: IO ()
 main = do
