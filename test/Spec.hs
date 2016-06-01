@@ -13,7 +13,7 @@ import Data.String.Interpolate       (i)
 import Data.Tuple.Operator           ((:-), pattern (:-))
 import Development.Shake             (Action, liftIO, shakeArgs, shakeOptions)
 import Development.Shake.Classes     (Binary, Hashable, NFData)
-import Development.Shake.Rule.Simple (Rule, need, rule, simpleStoredValue, storedValue, want)
+import Development.Shake.Rule.Simple (Rule, need, simpleRule, simpleStoredValue, storedValue, want)
 import GHC.Generics                  (Generic)
 import System.Directory              (getCurrentDirectory)
 import System.Environment            (lookupEnv)
@@ -71,20 +71,20 @@ main = do
         when runFullTest $
             want [FullCycleTest]
 
-        rule $ \FullCycleTest -> Just .
+        simpleRule $ \FullCycleTest ->
             need $ fmap FullCycle confs
 
-        rule $ \(FullCycle conf) -> Just $
+        simpleRule $ \(FullCycle conf) ->
             need [StackOfflinePack conf]
 
-        rule $ \dockerImage -> Just .
-            liftIO $ dockerBuild dockerImage
+        simpleRule $ -- DockerImage
+            liftIO . dockerBuild
 
-        rule $ \(StackOfflinePack conf) -> Just $
+        simpleRule $ \(StackOfflinePack conf) ->
             buildPack conf
 
-        rule $ \tool -> Just $
-            buildTool tool
+        simpleRule -- Tool
+            buildTool
 
   where
     confs = [ Conf{source, snapshot}
