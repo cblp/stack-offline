@@ -4,10 +4,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Development.Shake.Rule.Simple (Rule, need, rule, storedValue, want) where
+module Development.Shake.Rule.Simple (Rule, need, rule, simpleStoredValue, storedValue, want) where
 
 import Data.Functor           (($>))
-import Development.Shake      (Action, Rules, action)
+import Development.Shake      (Action, Rules, ShakeOptions, action)
 import Development.Shake.Rule (Rule, apply, rule, storedValue)
 
 class SimpleRule key where
@@ -18,3 +18,6 @@ instance Rule key () => SimpleRule key where
 
 want :: SimpleRule key => [key] -> Rules ()
 want = action . need
+
+simpleStoredValue :: Rule key value => ShakeOptions -> key -> IO (Maybe value)
+simpleStoredValue _ _ = pure Nothing

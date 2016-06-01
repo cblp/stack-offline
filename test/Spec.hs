@@ -13,7 +13,7 @@ import Data.String.Interpolate       (i)
 import Data.Tuple.Operator           ((:-), pattern (:-))
 import Development.Shake             (Action, liftIO, shakeArgs, shakeOptions)
 import Development.Shake.Classes     (Binary, Hashable, NFData)
-import Development.Shake.Rule.Simple (Rule, need, rule, storedValue, want)
+import Development.Shake.Rule.Simple (Rule, need, rule, simpleStoredValue, storedValue, want)
 import GHC.Generics                  (Generic)
 import System.Directory              (getCurrentDirectory)
 import System.Environment            (lookupEnv)
@@ -39,27 +39,27 @@ data Conf = Conf{source :: (Arch, Os), snapshot :: Snapshot}
 data FullCycleTest = FullCycleTest
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 instance Rule FullCycleTest () where
-    storedValue _ _ = pure Nothing
+    storedValue = simpleStoredValue
 
 newtype FullCycle = FullCycle Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 instance Rule FullCycle () where
-    storedValue _ _ = pure Nothing
+    storedValue = simpleStoredValue
 
 data DockerImage = DockerImage{image :: String, dockerfile :: String}
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 instance Rule DockerImage () where
-    storedValue _ _ = pure Nothing
+    storedValue = simpleStoredValue
 
 newtype StackOfflinePack = StackOfflinePack Conf
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 instance Rule StackOfflinePack () where
-    storedValue _ _ = pure Nothing
+    storedValue = simpleStoredValue
 
 data Tool = Tool Arch Os
     deriving (Binary, Eq, Generic, Hashable, NFData, Show)
 instance Rule Tool () where
-    storedValue _ _ = pure Nothing
+    storedValue = simpleStoredValue
 
 main :: IO ()
 main = do
