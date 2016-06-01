@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Development.Shake.Simple
     (Rule, need, rule, simpleRule, simpleStoredValue, storedValue, want) where
@@ -18,16 +16,13 @@ newtype SimpleKey a = SimpleKey a
 fromSimpleKey :: SimpleKey a -> a
 fromSimpleKey (SimpleKey a) = a
 
-class SimpleRule key where
-    need :: [key] -> Action ()
-
 instance ShakeValue key => Rule (SimpleKey key) () where
     storedValue = simpleStoredValue
 
-instance Rule (SimpleKey key) () => SimpleRule key where
-    need keys = (apply $ fmap SimpleKey keys :: Action [()]) $> ()
+need :: Rule (SimpleKey key) () => [key] -> Action ()
+need keys = (apply $ fmap SimpleKey keys :: Action [()]) $> ()
 
-want :: SimpleRule key => [key] -> Rules ()
+want :: Rule (SimpleKey key) () => [key] -> Rules ()
 want = action . need
 
 simpleStoredValue :: Rule key value => ShakeOptions -> key -> IO (Maybe value)
