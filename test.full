@@ -13,4 +13,4 @@ if [ `uname -s` != Linux ]; then
 fi
 time                        \
     STACK_OFFLINE_TEST=FULL \
-        stack test stack-offline:test "$@"
+        stack test stack-offline:test --test-arguments="--jobs --progress --verbose" "$@"

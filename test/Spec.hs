@@ -7,18 +7,18 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
-import Control.Monad             (unless, when)
-import Data.Monoid               ((<>))
-import Data.String.Interpolate   (i)
-import Data.Tuple.Operator       ((:-), pattern (:-))
-import Development.Shake
-import Development.Shake.Classes
-import Development.Shake.Rule
-import GHC.Generics              (Generic)
-import System.Directory          (getCurrentDirectory)
-import System.Environment        (lookupEnv)
-import System.IO                 (hPutStrLn, stderr)
-import System.Process            (callProcess)
+import Control.Monad                 (unless, when)
+import Data.Monoid                   ((<>))
+import Data.String.Interpolate       (i)
+import Data.Tuple.Operator           ((:-), pattern (:-))
+import Development.Shake             (Action, liftIO, shakeArgs, shakeOptions)
+import Development.Shake.Classes     (Binary, Hashable, NFData)
+import Development.Shake.Rule.Simple (Rule, need, rule, storedValue, want)
+import GHC.Generics                  (Generic)
+import System.Directory              (getCurrentDirectory)
+import System.Environment            (lookupEnv)
+import System.IO                     (hPutStrLn, stderr)
+import System.Process                (callProcess)
 
 import Stack.Offline (Snapshot)
 
@@ -46,16 +46,20 @@ newtype FullCycle = FullCycle Conf
 instance Rule FullCycle () where
     storedValue _ _ = pure Nothing
 
-needFullCycleTest :: Action ()
-needFullCycleTest = apply1 FullCycleTest
+data DockerImage = DockerImage{image :: String, dockerfile :: String}
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule DockerImage () where
+    storedValue _ _ = pure Nothing
 
-wantFullCycleTest :: Rules ()
-wantFullCycleTest = action needFullCycleTest
+newtype StackOfflinePack = StackOfflinePack Conf
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule StackOfflinePack () where
+    storedValue _ _ = pure Nothing
 
-needFullCycles :: [Conf] -> Action ()
-needFullCycles confs = do
-    _ :: [()] <- apply $ fmap FullCycle confs
-    pure ()
+data Tool = Tool Arch Os
+    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
+instance Rule Tool () where
+    storedValue _ _ = pure Nothing
 
 main :: IO ()
 main = do
@@ -64,14 +68,14 @@ main = do
         hPutStrLn stderr "Full cycle tests are skipped"
 
     shakeArgs shakeOptions $ do
-        when runFullTest
-            wantFullCycleTest
+        when runFullTest $
+            want [FullCycleTest]
 
-        rule $ \FullCycleTest -> Just $
-            needFullCycles confs
+        rule $ \FullCycleTest -> Just .
+            need $ fmap FullCycle confs
 
         rule $ \(FullCycle conf) -> Just $
-            needStackOfflinePack conf
+            need [StackOfflinePack conf]
 
         rule $ \dockerImage -> Just .
             liftIO $ dockerBuild dockerImage
@@ -94,14 +98,11 @@ main = do
 dockerImageName :: String -> (Arch, Os) -> String
 dockerImageName prefix (arch, os) = [i|stack-offline.#{prefix}.#{arch}-#{os}|]
 
-needTool :: Tool -> Action ()
-needTool = apply1
-
 buildTool :: Tool -> Action ()
 buildTool (Tool arch os) = do
     let sourceDockerfile = [i|docker/source.#{arch}-#{os}|]
         sourceImage = dockerImageName "source" (arch, os)
-    needDockerImage sourceImage sourceDockerfile
+    need [DockerImage sourceImage sourceDockerfile]
 
     cwd <- liftIO getCurrentDirectory
     liftIO $ dockerRunUser sourceImage [cwd :- "/opt/stack-offline"] [i|
@@ -115,9 +116,8 @@ buildPack :: Conf -> Action ()
 buildPack Conf{source = source@(sourceArch, sourceOs), snapshot} = do
     let sourceDockerfile = [i|docker/source.#{sourceArch}-#{sourceOs}|]
         sourceImage = dockerImageName "source" source
-    needDockerImage sourceImage sourceDockerfile
-
-    needTool $ Tool sourceArch sourceOs
+    need [DockerImage sourceImage sourceDockerfile]
+    need [Tool sourceArch sourceOs]
 
     cwd <- liftIO getCurrentDirectory
     let packFile = [i|tmp/stack-offline-pack_#{snapshot}_#{sourceArch}-#{sourceOs}.tgz|]
@@ -127,14 +127,6 @@ buildPack Conf{source = source@(sourceArch, sourceOs), snapshot} = do
         tmp/bin/stack-offline --resolver="#{snapshot}" --tgz="#{packFile}"
         test -f "#{packFile}"
     |]
-
-data DockerImage = DockerImage{image :: String, dockerfile :: String}
-    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule DockerImage () where
-    storedValue _ _ = pure Nothing
-
-needDockerImage :: String -> String -> Action ()
-needDockerImage image dockerfile = apply1 DockerImage{image, dockerfile}
 
 dockerBuild :: DockerImage -> IO ()
 dockerBuild DockerImage{image, dockerfile} = do
@@ -162,16 +154,3 @@ dockerRunUser image volumes userCommand =
           , "bash", "-eu", "-o", "pipefail", "-c"
           , userCommand ]
         ]
-
-newtype StackOfflinePack = StackOfflinePack Conf
-    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule StackOfflinePack () where
-    storedValue _ _ = pure Nothing
-
-needStackOfflinePack :: Conf -> Action ()
-needStackOfflinePack = apply1 . StackOfflinePack
-
-data Tool = Tool Arch Os
-    deriving (Binary, Eq, Generic, Hashable, NFData, Show)
-instance Rule Tool () where
-    storedValue _ _ = pure Nothing
